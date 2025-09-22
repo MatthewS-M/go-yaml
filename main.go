@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -21,21 +22,22 @@ func main() {
 		os.Exit(2)
 	}
 	filename := os.Args[1]
+	base := filepath.Base(filename)
 	b, err := os.ReadFile(filename)
 	if err != nil {
-		fmt.Fprintf(os.Stdout, "%s: cannot read file content: %v\n", filename, err)
+		fmt.Fprintf(os.Stdout, "%s: cannot read file content: %v\n", base, err)
 		os.Exit(1)
 	}
 	var root yaml.Node
 	if err := yaml.Unmarshal(b, &root); err != nil {
-		fmt.Fprintf(os.Stdout, "%s: cannot unmarshal file content: %v\n", filename, err)
+		fmt.Fprintf(os.Stdout, "%s: cannot unmarshal file content: %v\n", base, err)
 		os.Exit(1)
 	}
 	errs := validate(&root)
 	if len(errs) > 0 {
 		for _, e := range errs {
 			if e.line > 0 {
-				fmt.Fprintf(os.Stdout, "%s:%d %s\n", filename, e.line, e.msg)
+				fmt.Fprintf(os.Stdout, "%s:%d %s\n", base, e.line, e.msg)
 			} else {
 				fmt.Fprintln(os.Stdout, e.msg)
 			}
