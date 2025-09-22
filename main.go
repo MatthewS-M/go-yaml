@@ -17,27 +17,27 @@ type vErr struct {
 
 func main() {
 	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: yamlvalid <file.yaml>")
+		fmt.Fprintln(os.Stdout, "usage: yamlvalid <file.yaml>")
 		os.Exit(2)
 	}
 	filename := os.Args[1]
 	b, err := os.ReadFile(filename)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s: cannot read file content: %v\n", filename, err)
+		fmt.Fprintf(os.Stdout, "%s: cannot read file content: %v\n", filename, err)
 		os.Exit(1)
 	}
 	var root yaml.Node
 	if err := yaml.Unmarshal(b, &root); err != nil {
-		fmt.Fprintf(os.Stderr, "%s: cannot unmarshal file content: %v\n", filename, err)
+		fmt.Fprintf(os.Stdout, "%s: cannot unmarshal file content: %v\n", filename, err)
 		os.Exit(1)
 	}
 	errs := validate(&root)
 	if len(errs) > 0 {
 		for _, e := range errs {
 			if e.line > 0 {
-				fmt.Fprintf(os.Stderr, "%s:%d %s\n", filename, e.line, e.msg)
+				fmt.Fprintf(os.Stdout, "%s:%d %s\n", filename, e.line, e.msg)
 			} else {
-				fmt.Fprintln(os.Stderr, e.msg)
+				fmt.Fprintln(os.Stdout, e.msg)
 			}
 		}
 		os.Exit(1)
@@ -285,10 +285,6 @@ func validateResources(n *yaml.Node, errs *[]vErr) {
 	}
 }
 
-var (
-	reMemUnitsOnce = reMemUnits
-)
-
 func validateResourceScope(n *yaml.Node, errs *[]vErr) {
 	if cpu, ok := mapGet(n, "cpu"); ok {
 		if !isInt(cpu) {
@@ -298,7 +294,7 @@ func validateResourceScope(n *yaml.Node, errs *[]vErr) {
 	if mem, ok := mapGet(n, "memory"); ok {
 		if !isString(mem) {
 			*errs = append(*errs, vErr{line: mem.Line, msg: "memory must be string"})
-		} else if !reMemUnitsOnce.MatchString(mem.Value) {
+		} else if !reMemUnits.MatchString(mem.Value) {
 			*errs = append(*errs, vErr{line: mem.Line, msg: "memory has invalid format '" + mem.Value + "'"})
 		}
 	}
