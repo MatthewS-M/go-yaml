@@ -21,21 +21,17 @@ func main() {
 		os.Exit(2)
 	}
 	filename := os.Args[1]
-
 	b, err := os.ReadFile(filename)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%s: cannot read file content: %v\n", filename, err)
 		os.Exit(1)
 	}
-
 	var root yaml.Node
 	if err := yaml.Unmarshal(b, &root); err != nil {
 		fmt.Fprintf(os.Stderr, "%s: cannot unmarshal file content: %v\n", filename, err)
 		os.Exit(1)
 	}
-
 	errs := validate(&root)
-
 	if len(errs) > 0 {
 		for _, e := range errs {
 			if e.line > 0 {
@@ -50,7 +46,6 @@ func main() {
 
 func validate(root *yaml.Node) []vErr {
 	var errs []vErr
-
 	if root.Kind != yaml.DocumentNode || len(root.Content) == 0 {
 		return requiredTopLevelErrors()
 	}
@@ -58,12 +53,10 @@ func validate(root *yaml.Node) []vErr {
 	if doc.Kind != yaml.MappingNode {
 		return requiredTopLevelErrors()
 	}
-
 	apiVersion, okAPIVersion := mapGet(doc, "apiVersion")
 	kind, okKind := mapGet(doc, "kind")
 	metadata, okMetadata := mapGet(doc, "metadata")
 	spec, okSpec := mapGet(doc, "spec")
-
 	if !okAPIVersion {
 		errs = append(errs, vErr{msg: "apiVersion is required"})
 	} else {
@@ -73,7 +66,6 @@ func validate(root *yaml.Node) []vErr {
 			errs = append(errs, vErr{line: apiVersion.Line, msg: "apiVersion has unsupported value '" + apiVersion.Value + "'"})
 		}
 	}
-
 	if !okKind {
 		errs = append(errs, vErr{msg: "kind is required"})
 	} else {
@@ -83,19 +75,16 @@ func validate(root *yaml.Node) []vErr {
 			errs = append(errs, vErr{line: kind.Line, msg: "kind has unsupported value '" + kind.Value + "'"})
 		}
 	}
-
 	if !okMetadata {
 		errs = append(errs, vErr{msg: "metadata is required"})
 	} else {
 		validateMetadata(metadata, &errs)
 	}
-
 	if !okSpec {
 		errs = append(errs, vErr{msg: "spec is required"})
 	} else {
 		validateSpec(spec, &errs)
 	}
-
 	return errs
 }
 
@@ -113,18 +102,19 @@ func validateMetadata(n *yaml.Node, errs *[]vErr) {
 		*errs = append(*errs, vErr{line: n.Line, msg: "metadata must be object"})
 		return
 	}
-	if name, ok := mapGet(n, "name"); !ok {
+	name, okName := mapGet(n, "name")
+	if !okName {
 		*errs = append(*errs, vErr{msg: "metadata.name is required"})
 	} else if !isString(name) {
 		*errs = append(*errs, vErr{line: name.Line, msg: "metadata.name must be string"})
+	} else if name.Value == "" {
+		*errs = append(*errs, vErr{line: name.Line, msg: "name is required"})
 	}
-
 	if ns, ok := mapGet(n, "namespace"); ok {
 		if !isString(ns) {
 			*errs = append(*errs, vErr{line: ns.Line, msg: "metadata.namespace must be string"})
 		}
 	}
-
 	if labels, ok := mapGet(n, "labels"); ok {
 		if labels.Kind != yaml.MappingNode {
 			*errs = append(*errs, vErr{line: labels.Line, msg: "labels must be object"})
@@ -146,7 +136,6 @@ func validateSpec(n *yaml.Node, errs *[]vErr) {
 		*errs = append(*errs, vErr{line: n.Line, msg: "spec must be object"})
 		return
 	}
-
 	if osNode, ok := mapGet(n, "os"); ok {
 		if !isString(osNode) {
 			*errs = append(*errs, vErr{line: osNode.Line, msg: "os must be string"})
@@ -154,7 +143,6 @@ func validateSpec(n *yaml.Node, errs *[]vErr) {
 			*errs = append(*errs, vErr{line: osNode.Line, msg: "os has unsupported value '" + osNode.Value + "'"})
 		}
 	}
-
 	containers, ok := mapGet(n, "containers")
 	if !ok {
 		*errs = append(*errs, vErr{msg: "spec.containers is required"})
@@ -164,7 +152,6 @@ func validateSpec(n *yaml.Node, errs *[]vErr) {
 		*errs = append(*errs, vErr{line: containers.Line, msg: "spec.containers must be array"})
 		return
 	}
-
 	for _, item := range containers.Content {
 		if item.Kind != yaml.MappingNode {
 			*errs = append(*errs, vErr{line: item.Line, msg: "containers must be object"})
@@ -185,18 +172,20 @@ func validateContainer(n *yaml.Node, errs *[]vErr) {
 		*errs = append(*errs, vErr{msg: "containers.name is required"})
 	} else if !isString(name) {
 		*errs = append(*errs, vErr{line: name.Line, msg: "containers.name must be string"})
+	} else if name.Value == "" {
+		*errs = append(*errs, vErr{line: name.Line, msg: "name is required"})
 	} else if !reSnake.MatchString(name.Value) {
 		*errs = append(*errs, vErr{line: name.Line, msg: "containers.name has invalid format '" + name.Value + "'"})
 	}
-
 	if img, ok := mapGet(n, "image"); !ok {
 		*errs = append(*errs, vErr{msg: "containers.image is required"})
 	} else if !isString(img) {
 		*errs = append(*errs, vErr{line: img.Line, msg: "containers.image must be string"})
+	} else if img.Value == "" {
+		*errs = append(*errs, vErr{line: img.Line, msg: "image is required"})
 	} else if !reImage.MatchString(img.Value) {
 		*errs = append(*errs, vErr{line: img.Line, msg: "containers.image has invalid format '" + img.Value + "'"})
 	}
-
 	if ports, ok := mapGet(n, "ports"); ok {
 		if ports.Kind != yaml.SequenceNode {
 			*errs = append(*errs, vErr{line: ports.Line, msg: "containers.ports must be array"})
@@ -210,7 +199,6 @@ func validateContainer(n *yaml.Node, errs *[]vErr) {
 			}
 		}
 	}
-
 	if r, ok := mapGet(n, "readinessProbe"); ok {
 		if r.Kind != yaml.MappingNode {
 			*errs = append(*errs, vErr{line: r.Line, msg: "readinessProbe must be object"})
@@ -225,7 +213,6 @@ func validateContainer(n *yaml.Node, errs *[]vErr) {
 			validateProbe("livenessProbe", l, errs)
 		}
 	}
-
 	res, ok := mapGet(n, "resources")
 	if !ok {
 		*errs = append(*errs, vErr{msg: "resources is required"})
@@ -246,7 +233,6 @@ func validateContainerPort(n *yaml.Node, errs *[]vErr) {
 	} else if !portInRange(cp.Value) {
 		*errs = append(*errs, vErr{line: cp.Line, msg: "containerPort value out of range"})
 	}
-
 	if proto, ok := mapGet(n, "protocol"); ok {
 		if !isString(proto) {
 			*errs = append(*errs, vErr{line: proto.Line, msg: "protocol must be string"})
@@ -266,15 +252,13 @@ func validateProbe(prefix string, n *yaml.Node, errs *[]vErr) {
 		*errs = append(*errs, vErr{line: httpGet.Line, msg: prefix + ".httpGet must be object"})
 		return
 	}
-
 	if p, ok := mapGet(httpGet, "path"); !ok {
 		*errs = append(*errs, vErr{msg: "path is required"})
 	} else if !isString(p) {
 		*errs = append(*errs, vErr{line: p.Line, msg: "path must be string"})
-	} else if !strings.HasPrefix(p.Value, "/") {
+	} else if p.Value == "" || !strings.HasPrefix(p.Value, "/") {
 		*errs = append(*errs, vErr{line: p.Line, msg: "path has invalid format '" + p.Value + "'"})
 	}
-
 	if port, ok := mapGet(httpGet, "port"); !ok {
 		*errs = append(*errs, vErr{msg: "port is required"})
 	} else if !isInt(port) {
@@ -301,6 +285,10 @@ func validateResources(n *yaml.Node, errs *[]vErr) {
 	}
 }
 
+var (
+	reMemUnitsOnce = reMemUnits
+)
+
 func validateResourceScope(n *yaml.Node, errs *[]vErr) {
 	if cpu, ok := mapGet(n, "cpu"); ok {
 		if !isInt(cpu) {
@@ -310,13 +298,11 @@ func validateResourceScope(n *yaml.Node, errs *[]vErr) {
 	if mem, ok := mapGet(n, "memory"); ok {
 		if !isString(mem) {
 			*errs = append(*errs, vErr{line: mem.Line, msg: "memory must be string"})
-		} else if !reMemUnits.MatchString(mem.Value) {
+		} else if !reMemUnitsOnce.MatchString(mem.Value) {
 			*errs = append(*errs, vErr{line: mem.Line, msg: "memory has invalid format '" + mem.Value + "'"})
 		}
 	}
 }
-
-// Helpers
 
 func isString(n *yaml.Node) bool {
 	return n.Kind == yaml.ScalarNode && n.Tag == "!!str"
